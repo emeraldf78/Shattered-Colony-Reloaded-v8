@@ -1,0 +1,51 @@
+name: Build Shattered Colony v8
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Find and Build
+        run: |
+          # 1. Find the exact folder containing the xcodeproj
+          # This handles the complex nested naming
+          FULL_PATH=$(find . -name "ShatteredColony.xcodeproj" -not -path '*/.*' -print -quit)
+          PROJECT_DIR=$(dirname "$FULL_PATH")
+          
+          echo "Moving into project directory: $PROJECT_DIR"
+          cd "$PROJECT_DIR"
+
+          # 2. Build from INSIDE the folder to bypass pathing errors
+          xcodebuild archive \
+            -project "ShatteredColony.xcodeproj" \
+            -scheme "ShatteredColony" \
+            -archivePath "../../ShatteredColony.xcarchive" \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+
+      - name: Export IPA
+        run: |
+          # 3. Package the .app into a Payload folder for the IPA
+          # The archive is now in the root because of the '../../' path above
+          APP_PATH=$(find ./ShatteredColony.xcarchive/Products/Applications -name "*.app" -type d -print -quit)
+          
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -r ShatteredColony_v8.ipa Payload
+
+      - name: Upload Result
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShatteredColony-v8-IPA
+          path: ShatteredColony_v8.ipa
