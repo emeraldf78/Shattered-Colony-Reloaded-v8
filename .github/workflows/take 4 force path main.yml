@@ -1,0 +1,58 @@
+name: Build Shattered Colony v8
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Build Archive
+        run: |
+          # 1. Define the absolute path to the directory containing the .xcodeproj
+          # This matches the path you provided
+          PROJECT_DIR="Shattered-Colony-Reloaded-v8/ShatteredColony_v8/ShatteredColony"
+          
+          # 2. Move into that directory so xcodebuild sees the project locally
+          cd "$PROJECT_DIR"
+          
+          echo "Currently in: $(pwd)"
+          echo "Checking for project file..."
+          ls -d ShatteredColony.xcodeproj
+          
+          # 3. Run the build from within that folder
+          xcodebuild archive \
+            -project "ShatteredColony.xcodeproj" \
+            -scheme "ShatteredColony" \
+            -archivePath "../../../build/ShatteredColony.xcarchive" \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+
+      - name: Package IPA
+        run: |
+          # The archive was saved 3 levels up from the project dir in the step above
+          APP_PATH=$(find ./build/ShatteredColony.xcarchive/Products/Applications -name "*.app" -type d -print -quit)
+          
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: .app not found!"
+            exit 1
+          fi
+          
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -r ShatteredColony_v8.ipa Payload
+
+      - name: Upload Result
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShatteredColony-v8-IPA
+          path: ShatteredColony_v8.ipa
